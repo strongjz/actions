@@ -254,6 +254,7 @@ runs:
           echo "SNYK_COUNT: $SNYK_COUNT, GRYPE_COUNT: $GRYPE_COUNT, TRIVY_COUNT: $TRIVY_COUNT"
         else
           echo "GRYPE_COUNT: $GRYPE_COUNT, TRIVY_COUNT: $TRIVY_COUNT"
+          echo "::set-output name=SNYK_COUNT::0"
         fi        
                 
         echo "::set-output name=GRYPE_COUNT::$GRYPE_COUNT"
