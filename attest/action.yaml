@@ -86,7 +86,7 @@ runs:
           id: attest
           env:
               BUILDER_URI: ${{ inputs.BUILDER_URI }}
-              SCANNER_URI: ${{ inputs.BUILDER_URI }}
+              SCANNER_URI: ${{ inputs.SCANNER_URI }}
               SCANNER_VER: ${{ inputs.SCANNER_VER }}
               SCANNER_START: ${{ inputs.SCANNER_START }}
               SCANNER_FIN: ${{ inputs.SCANNER_FIN }}
