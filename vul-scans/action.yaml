@@ -50,7 +50,7 @@ inputs:
   RUN_SNYK:
     description: Run snyk scan or not, set SNYK_TOKEN as well
     required: false
-    default: "true"
+    default: 'true'
 
   SNYK_VERSION:
     description: |
@@ -157,45 +157,37 @@ runs:
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN'
 
-    - name: Cosign Attest trivy results
+    - name: Trivy Metadata
+      id: trivy-meta
       shell: bash
-      id: trivy-attest
-      env:
-        COSIGN_EXPERIMENTAL: "true"
       run: |
-        ATTESTATION=$(mktemp)
-
-        export SCANNER_URI=$(cat trivy-results.sarif | jq .runs[0].tool.driver.informationUri)
-        export SCANNER_VERSION=$(cat trivy-results.sarif | jq .runs[0].tool.driver.version)
-
-        cat > "${ATTESTATION}" <<EOF
-        {
-            "invocation": {
-              "parameters": null,
-              "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "event_id": "${{ github.workflow_run.workflow_id }}",
-              "builder.id": "${{ github.workflow }}"
-            },
-            "scanner": {
-              "uri": ${SCANNER_URI},
-              "version": ${SCANNER_VERSION},
-              "result": $(cat trivy-results.sarif | jq .)
-            },
-            "metadata": {
-              "scanStartedOn": "${{ steps.scan-start.outputs.date }}",
-              "scanFinishedOn": "$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")"
-            }
-        }
-        EOF 
-               
-        echo "trivy COSIGN_EXPERIMENTAL: $COSIGN_EXPERIMENTAL"
+        export TRIVY_SCANNER_URI=$(cat trivy-results.sarif | jq .runs[0].tool.driver.informationUri)
+        export TRIVY__VERSION=$(cat trivy-results.sarif | jq .runs[0].tool.driver.version)
         
-        export COSIGN_EXPERIMENTAL="$COSIGN_EXPERIMENTAL"
-               
-        cosign attest ${{ inputs.image }} \
-            --type vuln --predicate "${ATTESTATION}" \
-            --attachment-tag-prefix trivy-
+        echo "TRIVY_SCANNER_URI: $TRIVY_SCANNER_URI"
+        echo "TRIVY_VERSION: $TRIVY__VERSION"
+        
+        echo ::set-output name=TRIVY_SCANNER_URI::$TRIVY_SCANNER_URI
+        echo ::set-output name=TRIVY_VERSION::$TRIVY_VERSION
+        echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
 
+    - name: Cosign Attest trivy results
+      uses: strongjz/distroless-actions/attest@scans
+      id: trivy-attest
+      with:
+        BUILDER_URI: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SCANNER_URI: ${{ steps.trivy-meta.outputs.TRIVY_SCANNER_URI }}
+        SCANNER_VER: ${{ steps.trivy-meta.outputs.TRIVY_VERSION }}
+        SCANNER_START: ${{ steps.scan-start.outputs.date }}
+        SCANNER_FIN: ${{ steps.trivy-meta.outputs.date }}
+        EVENT_ID: ${{ github.run_id }}
+        BUILDER_ID: ${{ github.workflow }}
+        IMAGE: ${{ inputs.image }}
+        TYPE: "vuln"
+        PREFIX: "trivy-"
+        REGISTRY: ${{ inputs.registry }}
+        USERNAME: ${{ inputs.username }}
+        PASSWORD: ${{ inputs.password }}
 
     - name: Scan image with Anchore/Grype
       id: grype-scan
@@ -205,44 +197,37 @@ runs:
         fail-build: false
         severity-cutoff: low
 
-    - name: Cosign Attest Grype results
+    - name: grype Metadata
+      id: grype-meta
       shell: bash
-      id: grype-attest
-      env:
-        COSIGN_EXPERIMENTAL: "true"
       run: |
-        ATTESTATION=$(mktemp)
-
-        export SCANNER_URI=$(cat ${{ steps.grype-scan.outputs.sarif }} | jq .runs[0].tool.driver.informationUri)
-        export SCANNER_VERSION=$(cat ${{ steps.grype-scan.outputs.sarif }} | jq .runs[0].tool.driver.version)
-
-        cat > "${ATTESTATION}" <<EOF
-        {
-            "invocation": {
-              "parameters": null,
-              "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "event_id": "${{ github.event.id }}",
-              "builder.id": "${{ github.workflow }}"
-            },
-            "scanner": {
-              "uri": ${SCANNER_URI},
-              "version": ${SCANNER_VERSION},
-              "result": $(cat ${{ steps.grype-scan.outputs.sarif }} | jq .)
-            },
-            "metadata": {
-              "scanStartedOn": "${{ steps.scan-start.outputs.date }}",
-              "scanFinishedOn": "$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")"
-            }
-        }
-        EOF
-
-        echo "grype COSIGN_EXPERIMENTAL: $COSIGN_EXPERIMENTAL"
+        export GRYPE_SCANNER_URI=$(cat ${{ steps.grype-scan.outputs.sarif }} | jq .runs[0].tool.driver.informationUri)
+        export GRYPE_VERSION=$(cat ${{ steps.grype-scan.outputs.sarif }} | jq .runs[0].tool.driver.version)
         
-        export COSIGN_EXPERIMENTAL="$COSIGN_EXPERIMENTAL"
-          
-        cosign attest ${{ inputs.image }} \
-            --type vuln --predicate "${ATTESTATION}" \
-            --attachment-tag-prefix grype-
+        echo "GRYPE_SCANNER_URI: $GRYPE_SCANNER_URI"
+        echo "GRYPE_VERSION: $GRYPE_VERSION"
+        
+        echo ::set-output name=GRYPE_SCANNER_URI::$GRYPE_SCANNER_URI
+        echo ::set-output name=GRYPE_VERSION::$GRYPE_VERSION
+        echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
+
+    - name: Cosign Attest trivy results
+      uses: strongjz/distroless-actions/attest@scans
+      id: trivy-attest
+      with:
+        BUILDER_URI: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SCANNER_URI: ${{ steps.grype-meta.outputs.GRYPE_SCANNER_URI }}
+        SCANNER_VER: ${{ steps.grype-meta.outputs.GRYPE_VERSION }}
+        SCANNER_START: ${{ steps.scan-start.outputs.date }}
+        SCANNER_FIN: ${{ steps.grype-meta.outputs.date }}
+        EVENT_ID: ${{ github.run_id }}
+        BUILDER_ID: ${{ github.workflow }}
+        IMAGE: ${{ inputs.image }}
+        TYPE: "vuln"
+        PREFIX: "gryp-"
+        REGISTRY: ${{ inputs.registry }}
+        USERNAME: ${{ inputs.username }}
+        PASSWORD: ${{ inputs.password }}
 
     - name: High Level Scan report
       id: scan-report
