@@ -27,6 +27,10 @@ inputs:
         description: Scanner end time
         required: true
 
+    SCANNER_RESULTS:
+        description: Scanner results
+        required: true
+        
     EVENT_ID:
       description: |
         ID uniquely identifiying workflow run

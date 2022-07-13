@@ -162,13 +162,14 @@ runs:
       shell: bash
       run: |
         export TRIVY_SCANNER_URI=$(cat trivy-results.sarif | jq .runs[0].tool.driver.informationUri)
-        export TRIVY__VERSION=$(cat trivy-results.sarif | jq .runs[0].tool.driver.version)
+        export TRIVY_VERSION=$(cat trivy-results.sarif | jq .runs[0].tool.driver.version)
         
         echo "TRIVY_SCANNER_URI: $TRIVY_SCANNER_URI"
-        echo "TRIVY_VERSION: $TRIVY__VERSION"
+        echo "TRIVY_VERSION: $TRIVY_VERSION"
         
         echo ::set-output name=TRIVY_SCANNER_URI::$TRIVY_SCANNER_URI
         echo ::set-output name=TRIVY_VERSION::$TRIVY_VERSION
+        echo ::set-output name=TRIVY_RESULTS::$(cat trivy-results.sarif )
         echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
 
     - name: Cosign Attest trivy results
@@ -180,6 +181,7 @@ runs:
         SCANNER_VER: ${{ steps.trivy-meta.outputs.TRIVY_VERSION }}
         SCANNER_START: ${{ steps.scan-start.outputs.date }}
         SCANNER_FIN: ${{ steps.trivy-meta.outputs.date }}
+        SCANNER_RESULTS: ${{ steps.trivy-meta.outputs.TRIVY_RESULTS }}
         EVENT_ID: ${{ github.run_id }}
         BUILDER_ID: ${{ github.workflow }}
         IMAGE: ${{ inputs.image }}
@@ -209,6 +211,7 @@ runs:
         
         echo ::set-output name=GRYPE_SCANNER_URI::$GRYPE_SCANNER_URI
         echo ::set-output name=GRYPE_VERSION::$GRYPE_VERSION
+        
         echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
 
     - name: Cosign Attest trivy results
@@ -220,6 +223,7 @@ runs:
         SCANNER_VER: ${{ steps.grype-meta.outputs.GRYPE_VERSION }}
         SCANNER_START: ${{ steps.scan-start.outputs.date }}
         SCANNER_FIN: ${{ steps.grype-meta.outputs.date }}
+        SCANNER_RESULTS: ${{ steps.grype-scan.outputs.sarif }}
         EVENT_ID: ${{ github.run_id }}
         BUILDER_ID: ${{ github.workflow }}
         IMAGE: ${{ inputs.image }}
