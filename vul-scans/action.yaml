@@ -49,7 +49,7 @@ inputs:
 
   RUN_SNYK:
     description: Run snyk scan or not, set SNYK_TOKEN as well
-    required: true
+    required: false
     default: "true"
 
   SNYK_VERSION:
@@ -130,7 +130,7 @@ runs:
       with:
         BUILDER_URI: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SCANNER_URI: ${{ env.SNYK_URL }}
-        SCANNER_VER: ${{ inputs.SNYK_VERSION }}
+        SCANNER_VER: ${{ env.SNYK_VERSION }}
         SCANNER_START: ${{ steps.scan-start.outputs.date }}
         SCANNER_FIN: $(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
         EVENT_ID: ${{ github.run_id }}
