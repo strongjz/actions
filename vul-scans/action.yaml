@@ -72,11 +72,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Setup cosign
-      uses: sigstore/cosign-installer@48866aa521d8bf870604709cd43ec2f602d03ff2 #v2.4.1
-      with:
-        cosign-release: v1.9.0
-
     - uses: docker/login-action@bb984efc561711aaa26e433c32c3521176eae55b # v1.13.0
       with:
         registry: ${{ inputs.registry }}
@@ -130,39 +125,22 @@ runs:
 
     - name: Cosign Attest Snyk results
       if: ${{ inputs.RUN_SNYK }} == "true"
-      shell: bash
+      uses: strongjz/distroless-actions/attest@scans
       id: snyk-attest
-      env:
-        COSIGN_EXPERIMENTAL: "true"
-      run: |
-        ATTESTATION=$(mktemp)
-
-        cat > "${ATTESTATION}" <<EOF
-        {
-            "invocation": {
-              "parameters": null,
-              "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "event_id": "${{ github.event.id }}",
-              "builder.id": "${{ github.workflow }}"
-            },
-            "scanner": {
-              "uri": "${SNYK_URL}",
-              "version": "${SNYK_VERSION}",
-              "result": $(cat snyk.json | jq .)
-            },
-            "metadata": {
-              "scanStartedOn": "${{ steps.scan-start.outputs.date }}",
-              "scanFinishedOn": "$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")"
-            }
-        }
-        EOF
-        echo "Snyk COSIGN_EXPERIMENTAL: $COSIGN_EXPERIMENTAL"
-        
-        export COSIGN_EXPERIMENTAL="$COSIGN_EXPERIMENTAL"
-        
-        cosign attest ${{ inputs.image }} \
-            --type vuln --predicate "${ATTESTATION}" \
-            --attachment-tag-prefix snyk-
+      with:
+        BUILDER_URI: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SCANNER_URI: ${{ env.SNYK_URL }}
+        SCANNER_VER: ${{ env.SNYK_VERSION }}
+        SCANNER_START: ${{ steps.scan-start.outputs.date }}
+        SCANNER_FIN: $(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
+        EVENT_ID: ${{ github.run_id }}
+        BUILDER_ID: ${{ github.workflow }}
+        IMAGE: ${{ inputs.image }}
+        TYPE: "vuln"
+        PREFIX: "snyk-"
+        REGISTRY: ${{ inputs.registry }}
+        USERNAME: ${{ inputs.username }}
+        PASSWORD: ${{ inputs.password }}
 
     - name:  Scan image with AquaSec/Trivy
       uses: aquasecurity/trivy-action@0105373003c89c494a3f436bd5efc57f3ac1ca20 #v0.5.1
@@ -191,7 +169,7 @@ runs:
             "invocation": {
               "parameters": null,
               "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "event_id": "${{ github.event.id }}",
+              "event_id": "${{ github.workflow_run.workflow_id }}",
               "builder.id": "${{ github.workflow }}"
             },
             "scanner": {

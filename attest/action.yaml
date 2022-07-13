@@ -1,0 +1,127 @@
+# Copyright 2022 The Distroless Authors
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Cosign Attestation'
+description: |
+    This action uses cosign to create an attestation 
+
+inputs:
+    BUILDER_URI:
+      description: |
+            URI indicating the builder’s identity.
+      required: true
+
+    SCANNER_URI:
+        description: URI for identifiying the scanner
+        required: true
+
+    SCANNER_VER:
+        description: Version of the scanner used
+        required: true
+
+    SCANNER_START:
+        description: Scanner start time
+        required: true
+
+    SCANNER_FIN:
+        description: Scanner end time
+        required: true
+
+    EVENT_ID:
+      description: |
+        ID uniquely identifiying workflow run
+      required: true
+
+    BUILDER_ID:
+      description: |
+        Builder ID describing the invocation
+      required: true
+
+    IMAGE:
+        description: |
+            The container image into which we should publish attestation.
+        required: true
+
+    TYPE:
+        description: |
+            Type of attestion to create
+        required: true
+
+    PREFIX:
+        description: |
+            string to prefix to attestation 
+            cosign attest --attachment-tag-prefix [PREFIX]sha256-[TargetImageDigest].[AttachmentName]
+        required: true
+
+    REGISTRY:
+        description: |
+            Registry to pull IMAGE from and push attestations
+        required: true
+
+    USERNAME:
+        description: |
+            Username to log into REGISTRY
+        required: true
+
+    PASSWORD:
+        description: |
+            PASSWORD to log into REGISTRY
+        required: true
+
+outputs:
+
+runs:
+    using: composite
+    steps:
+        - name: Setup cosign
+          uses: sigstore/cosign-installer@48866aa521d8bf870604709cd43ec2f602d03ff2 #v2.4.1
+          with:
+              cosign-release: v1.9.0
+
+        - uses: docker/login-action@bb984efc561711aaa26e433c32c3521176eae55b # v1.13.0
+          with:
+              registry: ${{ inputs.registry }}
+              username: ${{ inputs.username }}
+              password: ${{ inputs.password }}
+
+        - name: Cosign Attest Results
+          shell: bash
+          id: attest
+          env:
+              BUILDER_URI: ${{ inputs.BUILDER_URI }}
+              SCANNER_URI: ${{ inputs.BUILDER_URI }}
+              SCANNER_VER: ${{ inputs.SCANNER_VER }}
+              SCANNER_START: ${{ inputs.SCANNER_START }}
+              SCANNER_FIN: ${{ inputs.SCANNER_FIN }}
+              SCANNER_RESULTS: $ {{ inputs.SCANNER_RESULTS }}
+              EVENT_ID: ${{ inputs.EVENT_ID }}
+              BUILDER_ID: ${{ inputs.BUILDER_ID }}
+              IMAGE: ${{ inputs.IMAGE }}
+              TYPE: ${{ inputs.TYPE }}
+              PREFIX: ${{ inputs.PREFIX }}
+          run: |
+              ATTESTATION=$(mktemp)
+              
+              cat > "${ATTESTATION}" <<EOF
+              {
+                  "invocation": {
+                    "parameters": null,
+                    "uri": "${BUILDER_URI}",
+                    "event_id": "${EVENT_ID}",
+                    "builder.id": "${BUILDER_ID}"
+                  },
+                  "scanner": {
+                    "uri": "${SCANNER_URI}",
+                    "version": "${SCANNER_VER}",
+                    "result": "${SCANNER_RESULTS}"
+                  },
+                  "metadata": {
+                    "scanStartedOn": "${SCANNER_START}",
+                    "scanFinishedOn": "${SCANNER_FIN}",
+                  }
+              }
+              EOF
+                           
+              COSIGN_EXPERIMENTAL="true" cosign attest ${IMAGE} \
+                  --type ${TYPE} --predicate "${ATTESTATION}" \
+                  --attachment-tag-prefix ${PREFIX}
