@@ -10,6 +10,7 @@ inputs:
   config:
     description: |
       The config file to use for building the image.
+    required: false
     default: .apko.yaml
 
   base-tag:
@@ -41,11 +42,6 @@ inputs:
       The token to use for docker login step.
     default: ${{ github.token }}
 
-  trivy-exit-code:
-    description: |
-      The exit code for Trivy to use when vulnerabilities are encountered.
-    default: "1"
-
   use-docker-mediatypes:
     description: |
       Use Docker mediatypes for building the image.
@@ -70,6 +66,13 @@ inputs:
   debug:
     description: |
       Enable debug logging.
+    type: boolean
+    required: false
+    default: false
+
+  vulnerability-scan:
+    description: |
+      Enable Vulnerability scans and attestations
     type: boolean
     required: false
     default: false
@@ -119,6 +122,7 @@ runs:
         username: ${{ inputs.username }}
         password: ${{ inputs.token }}
 
+
     - shell: bash
       env:
         COSIGN_EXPERIMENTAL: "true"
@@ -128,63 +132,14 @@ runs:
             -a run_id=${{ github.run_id }} \
             -a run_attempt=${{ github.run_attempt }}
 
-    - id: scan-start
-      run: |
-        echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
-      shell: bash
-
-    - uses: aquasecurity/trivy-action@master
+    - uses: distroless/actions/vul-scans@scans
+      id: vul-scans
+      if: ${{ inputs.vulnerability-scan }}
       with:
-        image-ref: ${{ steps.apko.outputs.digest }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        exit-code: ${{ inputs.trivy-exit-code }}
-        vuln-type: 'os,library'
-        severity: 'CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN'
-
-    # TODO(mattmoor): Figure out how to get the SARIF
-    # results uploading. This may need `content: write`
-    # permissions to publish the results...
-    # - uses: github/codeql-action/upload-sarif@v1
-    #   if: ${{ always() }}
-    #   with:
-    #     sarif_file: 'trivy-results.sarif'
-
-    - shell: bash
-      if: ${{ always() }}
-      env:
-        COSIGN_EXPERIMENTAL: "true"
-      run: |
-        ATTESTATION=$(mktemp)
-
-        export SCANNER_URI=$(cat trivy-results.sarif | jq .runs[0].tool.driver.informationUri)
-        export SCANNER_VERSION=$(cat trivy-results.sarif | jq .runs[0].tool.driver.version)
-
-        cat > "${ATTESTATION}" <<EOF
-        {
-            "invocation": {
-              "parameters": null,
-              "uri": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "event_id": "${{ github.event.id }}",
-              "builder.id": "${{ github.workflow }}"
-            },
-            "scanner": {
-              "uri": ${SCANNER_URI},
-              "version": ${SCANNER_VERSION},
-              "result": $(cat trivy-results.sarif | jq .)
-            },
-            "metadata": {
-              "scanStartedOn": "${{ steps.scan-start.outputs.date }}",
-              "scanFinishedOn": "$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")"
-            }
-        }
-        EOF
-
-        cosign attest ${{ steps.apko.outputs.digest }} \
-            --type vuln --predicate "${ATTESTATION}"
-
-    # TODO(#7): Replace trivy-exit-code with a Cue policy that
-    # we should run against the vuln result.
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.token }}
+        image: ${{ steps.apko.outputs.digest }}
 
     # Now that everything else has completed successfully, update the target tag.
     # based on the digest produced above.
