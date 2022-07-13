@@ -67,9 +67,6 @@ inputs:
         description: |
             PASSWORD to log into REGISTRY
         required: true
-
-outputs:
-
 runs:
     using: composite
     steps:
