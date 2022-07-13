@@ -213,7 +213,7 @@ runs:
 
     - name: Cosign Attest trivy results
       uses: strongjz/distroless-actions/attest@scans
-      id: trivy-attest
+      id: grype-attest
       with:
         BUILDER_URI: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SCANNER_URI: ${{ steps.grype-meta.outputs.GRYPE_SCANNER_URI }}
