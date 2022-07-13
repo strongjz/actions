@@ -71,6 +71,7 @@ outputs:
 
 runs:
   using: composite
+
   steps:
     - uses: docker/login-action@bb984efc561711aaa26e433c32c3521176eae55b # v1.13.0
       with:
@@ -84,7 +85,7 @@ runs:
       shell: bash
 
     - id: install-snyk
-      if: ${{ inputs.RUN_SNYK == "true" }}
+      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       name: Run Snyk to check Docker image for vulnerabilities
       shell: bash
       env:
@@ -115,7 +116,7 @@ runs:
 
     - name: Run Snyk to check Docker image for vulnerabilities
       id: snyk-scan
-      if: ${{ inputs.RUN_SNYK == "true" }}
+      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       shell: bash
       env:
         SNYK_TOKEN: ${{ inputs.SNYK_TOKEN }}
@@ -127,7 +128,7 @@ runs:
         echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
 
     - name: Cosign Attest Snyk results
-      if: ${{ inputs.RUN_SNYK == "true" }}
+      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       uses: strongjz/distroless-actions/attest@scans
       id: snyk-attest
       with:
@@ -246,12 +247,14 @@ runs:
     - name: High Level Scan report
       id: scan-report
       shell: bash
+      env:
+        RUN_SNYK: ${{ inputs.RUN_SNYK }}
       run: |
  
         GRYPE_COUNT=$(cat ${{ steps.grype-scan.outputs.sarif }} | jq '.runs[0].results | length')
         TRIVY_COUNT=$(cat trivy-results.sarif | jq '.runs[0].results | length')
         
-        if [[ ${{ inputs.RUN_SNYK }} == "true" ]]; then 
+        if [[ ${RUN_SNYK} == "true" ]]; then 
           SNYK_COUNT=$(cat snyk.json | jq .uniqueCount)
           echo "::set-output name=SNYK_COUNT::$SNYK_COUNT"
           echo "SNYK_COUNT: $SNYK_COUNT, GRYPE_COUNT: $GRYPE_COUNT, TRIVY_COUNT: $TRIVY_COUNT"
