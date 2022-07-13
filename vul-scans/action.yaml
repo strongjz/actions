@@ -85,7 +85,6 @@ runs:
       shell: bash
 
     - id: install-snyk
-      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       name: Run Snyk to check Docker image for vulnerabilities
       shell: bash
       env:
@@ -116,7 +115,6 @@ runs:
 
     - name: Run Snyk to check Docker image for vulnerabilities
       id: snyk-scan
-      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       shell: bash
       env:
         SNYK_TOKEN: ${{ inputs.SNYK_TOKEN }}
@@ -125,10 +123,11 @@ runs:
         --app-vulns --json --severity-threshold=low \
         --json-file-output=snyk.json >/dev/null || true
         
+        echo ::set-output name=SNYK_RESULTS::$(cat snyk.json)
         echo ::set-output name=date::$(TZ=Zulu date "+%Y-%m-%dT%H:%M:%SZ")
+        
 
     - name: Cosign Attest Snyk results
-      if: ${{ github.event.inputs.RUN_SNYK == 'true' }}
       uses: strongjz/distroless-actions/attest@scans
       id: snyk-attest
       with:
@@ -137,6 +136,7 @@ runs:
         SCANNER_VER: ${SNYK_VERSION}
         SCANNER_START: ${{ steps.scan-start.outputs.date }}
         SCANNER_FIN: ${{ steps.snyk-scan.outputs.date }}
+        SCANNER_RESULTS: ${{ steps.snyk-scan.outputs.SNYK_RESULTS }}
         EVENT_ID: ${{ github.run_id }}
         BUILDER_ID: ${{ github.workflow }}
         IMAGE: ${{ inputs.image }}
